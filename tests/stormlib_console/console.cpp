@@ -18,7 +18,7 @@ namespace MPQ
     {
       if (!SFileOpenArchive (archive_name.c_str(), 0, 0, &_internal))
       {
-  throw std::runtime_error ("opening archive \"" + archive_name + "\" failed.");
+        throw std::runtime_error ("opening archive \"" + archive_name + "\" failed.");
       }
     }
 
@@ -28,11 +28,11 @@ namespace MPQ
       HANDLE find_handle (SFileFindFirstFile (_internal, "*", &file_data, NULL));
       if (!find_handle)
       {
-  throw std::runtime_error ("there are no files or some error happened. idk");
+        throw std::runtime_error ("there are no files or some error happened. idk");
       }
       do
       {
-  std::cout << file_data.cFileName << " ||| " << file_data.dwFileTimeLo << ", " << file_data.dwFileTimeLo << std::endl;
+        std::cout << file_data.cFileName << " ||| " << file_data.dwFileTimeLo << ", " << file_data.dwFileTimeLo << std::endl;
       }
       while (SFileFindNextFile (find_handle, &file_data));
     }
