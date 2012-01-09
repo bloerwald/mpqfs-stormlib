@@ -18,12 +18,10 @@ struct file_entry_type
 {
   stat_type _stat;
   std::string _filename;
-  HANDLE _stormlib_handle;
 
   file_entry_type (const stat_type& stat, const std::string& filename)
     : _stat (stat)
     , _filename (filename)
-    , _stormlib_handle (NULL)
   { }
 
   static file_entry_type dummy (const std::string& filename)
@@ -147,7 +145,8 @@ public:
 
       stat_type stat;
       memset (&stat, 0, sizeof (stat));
-      stat.st_mode = S_IFREG | 0777;
+      //! \todo Write permission?
+      stat.st_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
       stat.st_nlink = 1;
       stat.st_size = file_data.dwFileSize;
 
@@ -170,28 +169,6 @@ public:
                                                   );
 
       _directories[directory]._files.push_back (file_entry_type (stat, file));
-
-/*
-struct stat {
-dev_t st_dev;
-ino_t st_ino;
-mode_t st_mode;
-nlink_t st_nlink;
-uid_t st_uid;
-gid_t st_gid;
-dev_t st_rdev;
-blksize_t st_blksize;
-blkcnt_t st_blocks;
-mode_t st_attr;
-};
-
-char * szPlainName;                 // Plain name of the found file
-DWORD  dwHashIndex;                 // Hash table index for the file
-DWORD  dwBlockIndex;                // Block table index for the file
-DWORD  dwFileFlags;                 // MPQ file flags
-DWORD  dwCompSize;                  // Compressed file size
-LCID   lcLocale;                    // Locale version
-*/
     }
     while (SFileFindNextFile (find_handle, &file_data));
 
@@ -220,7 +197,7 @@ LCID   lcLocale;                    // Locale version
     {
       stat_type directory;
       memset (&directory, 0, sizeof (directory));
-      directory.st_mode = S_IFDIR | 0755;
+      directory.st_mode = S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
       directory.st_nlink = 3;
       directory.st_atime = dir_it->second._max_time;
       directory.st_mtime = dir_it->second._max_time;
@@ -236,15 +213,10 @@ LCID   lcLocale;                    // Locale version
   {
     file_list_type::iterator file_it (get_file (dir, file));
 
-    if ((file_info->flags & 3) != O_RDONLY)
-    {
-      throw access_denied();
-    }
-
     std::string path ((dir + file).substr (1));
     replace (path, "/", "\\");
 
-    if (!SFileOpenFileEx (_internal, path.c_str(), SFILE_OPEN_FROM_MPQ, &file_it->_stormlib_handle))
+    if (!SFileOpenFileEx (_internal, path.c_str(), SFILE_OPEN_FROM_MPQ, reinterpret_cast<HANDLE*> (&file_info->fh)))
     {
       throw no_such_file();
     }
@@ -260,11 +232,6 @@ LCID   lcLocale;                    // Locale version
   {
     file_list_type::iterator file_it (get_file (dir, file));
 
-    if ((file_info->flags & 3) != O_RDONLY)
-    {
-      throw access_denied();
-    }
-
     if (offset < file_it->_stat.st_size)
     {
       if (offset + size > file_it->_stat.st_size)
@@ -273,10 +240,10 @@ LCID   lcLocale;                    // Locale version
       }
 
       //! \todo not null but size_hi?
-      SFileSetFilePointer (file_it->_stormlib_handle, offset, NULL, FILE_BEGIN);
+      SFileSetFilePointer (reinterpret_cast<HANDLE> (file_info->fh), offset, NULL, FILE_BEGIN);
 
       DWORD read_bytes (size);
-      SFileReadFile (file_it->_stormlib_handle, result_buffer, size, &read_bytes);
+      SFileReadFile (reinterpret_cast<HANDLE> (file_info->fh), result_buffer, size, &read_bytes);
 
       return read_bytes;
     }
@@ -308,7 +275,7 @@ LCID   lcLocale;                    // Locale version
       const std::string proper_sub_dir (sub_dir.substr (directory.length()));
       if (proper_sub_dir.find_first_of ('/') == proper_sub_dir.length() - 1)
       {
-        list.add (proper_sub_dir);
+        list.add (proper_sub_dir.substr (0, proper_sub_dir.length() - 1));
       }
     }
 
@@ -458,11 +425,12 @@ int fs_read ( const char* path
   }
 }
 
-static struct fuse_operations hello_oper = {
-    .getattr  = fs_getattr,
-    .readdir  = fs_readdir,
-    .open = fs_open,
-    .read = fs_read,
+static fuse_operations hello_oper =
+{
+  .getattr  = fs_getattr,
+  .readdir  = fs_readdir,
+  .open = fs_open,
+  .read = fs_read,
 };
 
 
