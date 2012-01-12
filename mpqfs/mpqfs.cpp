@@ -1,15 +1,15 @@
+#include "system_error.h"
+
+#include "storm_error_code_thrower.h"
+
 #include <fuse.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <fcntl.h>
 
 #include <StormLib.h>
 
 #include <vector>
 #include <iostream>
 #include <string>
-#include <stdexcept>
+#include <sstream>
 #include <map>
 
 typedef struct stat stat_type;
@@ -59,31 +59,15 @@ void replace ( std::string& string
   }
 }
 
-time_t filetime_to_time_t (long long int lo, long long int hi)
+time_t filetime_to_time_t (const long long int& lo, const long long int& hi)
 {
   return time_t ((hi << 32 | lo) / 10000000LL - 11644473600LL);
 }
 
-//! \todo file already exists und so
-
-class system_error : public std::runtime_error
+ULONGLONG time_t_to_filetime (const time_t& time)
 {
-public:
-  system_error (size_t error_id, const std::string& what)
-    : std::runtime_error (what)
-    , _error_id (error_id)
-  { }
-
-  size_t _error_id;
-};
-
-#define ERROR_CLASS(NAME, ID) \
-  class NAME : public system_error \
-  { public: NAME() : system_error (ID, #NAME "(" #ID ")") { } };
-
-ERROR_CLASS (no_such_file, ENOENT);
-ERROR_CLASS (access_denied, EACCES);
-ERROR_CLASS (not_empty, ENOTEMPTY);
+  return ULONGLONG ((time + 11644473600LL) * 10000000LL);
+}
 
 class file_lister_helper
 {
@@ -102,40 +86,191 @@ public:
   fuse_fill_dir_t _filler;
 };
 
-class mpq_fs
+
+
+
+inline void split_into_dir_and_file ( const std::string& in
+                                    , std::string& path
+                                    , std::string& file
+                                    )
+{
+  const size_t slash_pos (in.find_last_of ('/'));
+  path = in.substr (0, slash_pos + 1);
+  file = in.substr (slash_pos + 1);
+}
+
+class path_type
+{
+  typedef std::vector<std::string> elements_type;
+
+public:
+  path_type (const char* c_str)
+    : _elements (0)
+  {
+    std::string s (c_str);
+    replace (s, "\\", "/");
+
+    std::stringstream ss (s);
+    std::string item;
+    while (std::getline (ss, item, '/'))
+    {
+      if (item != "")
+      {
+        _elements.push_back (item);
+      }
+    }
+  }
+
+  const std::string& file() const
+  {
+    return _elements.back();
+  }
+  std::string directory ( const std::string& delimiter = "/"
+                        , const bool& start_with_delimiter = true
+                        ) const
+  {
+    return join_path (_elements.end() - 1, delimiter, start_with_delimiter) + delimiter;
+  }
+
+  std::string full_path ( const bool& is_a_directory = false
+                        , const std::string& delimiter = "/"
+                        , const bool& start_with_delimiter = true
+                        ) const
+  {
+    if (is_a_directory)
+    {
+      return join_path (_elements.end(), delimiter, start_with_delimiter);
+    }
+    else
+    {
+      return join_path (_elements.end(), delimiter, start_with_delimiter) + delimiter;
+    }
+  }
+
+private:
+  inline std::string join_path ( const elements_type::const_iterator& end
+                               , const std::string& delimiter = "/"
+                               , const bool& start_with_delimiter = true
+                               ) const
+  {
+    std::string return_value;
+    for (elements_type::const_iterator it (_elements.begin()); it != end; ++it)
+    {
+      return_value += delimiter + *it;
+    }
+    if (!start_with_delimiter)
+    {
+      return return_value.substr (1);
+    }
+    else
+    {
+      if (_elements.begin() == end)
+      {
+        return_value = delimiter;
+      }
+      return return_value;
+    }
+  }
+
+  elements_type _elements;
+};
+
+class fuse_file_system
+{
+public:
+  fuse_file_system() { }
+  virtual ~fuse_file_system() { }
+
+  virtual stat_type get_attributes ( const std::string& dir
+                                   , const std::string& file
+                                   )
+  {
+    throw function_not_implemented();
+  }
+  virtual void open ( const std::string& dir
+                    , const std::string& file
+                    , fuse_file_info* file_info
+                    )
+  {
+    throw function_not_implemented();
+  }
+  virtual size_t read ( const std::string& dir
+                      , const std::string& file
+                      , fuse_file_info* file_info
+                      , char* result_buffer
+                      , off_t offset
+                      , size_t size
+                      )
+  {
+    throw function_not_implemented();
+  }
+  virtual void list_files ( const std::string& directory
+                          , file_lister_helper& list
+                          )
+  {
+    throw function_not_implemented();
+  }
+  virtual void make_directory (std::string directory)
+  {
+    throw function_not_implemented();
+  }
+  virtual void remove_directory (std::string directory)
+  {
+    throw function_not_implemented();
+  }
+  virtual void remove_file (const path_type& path)
+  {
+    throw function_not_implemented();
+  }
+  virtual void create_file ( const path_type& path
+                           , fuse_file_info* file_info
+                           , mode_t mode
+                           )
+  {
+    throw function_not_implemented();
+  }
+  virtual void release_file_handle ( const std::string& dir
+                                   , const std::string& file
+                                   , fuse_file_info* file_info
+                                   )
+  {
+    throw function_not_implemented();
+  }
+  virtual void rename_file ( const std::string& source_directory
+                           , const std::string& source_file
+                           , const std::string& target_directory
+                           , const std::string& target_file
+                           )
+  {
+    throw function_not_implemented();
+  }
+};
+
+class mpq_fs : public fuse_file_system
 {
 public:
   mpq_fs (const std::string& archive_name)
-    : _archive_name (archive_name)
+    : fuse_file_system()
+    , _archive_name (archive_name)
   {
     if (!SFileOpenArchive (archive_name.c_str(), 0, 0, &_internal))
     {
-      throw std::runtime_error ("opening archive \"" + archive_name + "\" failed.");
+      throw_error_if_available();
     }
 
     //! \note Dummy.
     _directories["/"]._min_time = 0;
 
-    create_file_lists();
-  }
-
-  ~mpq_fs()
-  {
-    //! \todo close files? Are all file handles closed earlier?
-    SFileCloseArchive (_internal);
-  }
-
-  void create_file_lists()
-  {
     SFILE_FIND_DATA file_data;
-    HANDLE find_handle (SFileFindFirstFile (_internal, "*", &file_data, NULL));
-    if (!find_handle)
-    {
-      throw std::runtime_error ("there are no files or some error happened. idk");
-    }
-    do
+    for ( HANDLE find_handle (SFileFindFirstFile (_internal, "*", &file_data, NULL))
+        ; GetLastError() != ERROR_NO_MORE_FILES
+        ; SFileFindNextFile (find_handle, &file_data)
+        )
     {
       std::string filename (file_data.cFileName);
+
+      std::cout << "+ " << filename << std::endl;
+
       if (filename == "(listfile)" || filename == "(attributes)")
       {
         continue;
@@ -154,10 +289,10 @@ public:
       stat.st_nlink = 1;
       stat.st_size = file_data.dwFileSize;
 
-      time_t unix_time ( filetime_to_time_t ( file_data.dwFileTimeLo
-                                            , file_data.dwFileTimeHi
-                                            )
-                       );
+      const time_t unix_time ( filetime_to_time_t ( file_data.dwFileTimeLo
+                                                  , file_data.dwFileTimeHi
+                                                  )
+                             );
 
       //! \todo access and modification dynamic?
       stat.st_atime = unix_time;
@@ -174,9 +309,6 @@ public:
 
       _directories[directory]._files.push_back (file_entry_type (stat, file));
     }
-    while (SFileFindNextFile (find_handle, &file_data));
-
-    SFileFindClose (find_handle);
 
     //! \note insert dummy directories for directories without files and only sub directories.
     for ( directories_type::iterator it (_directories.begin())
@@ -196,9 +328,15 @@ public:
     }
   }
 
-  stat_type get_attributes (const std::string& dir, const std::string& file)
+  ~mpq_fs()
   {
-    std::cout << "get_attributes (" << dir << ", " << file << ");\n";
+    //! \todo close files? Are all file handles closed earlier?
+    SFileCloseArchive (_internal);
+  }
+
+  virtual stat_type get_attributes (const std::string& dir, const std::string& file)
+  {
+    std::cout << "get_attributes ( " << dir << ", " << file << " ..._ >" << assemble_directory (dir, file) << std::endl;
     directories_type::iterator dir_it (_directories.find (assemble_directory (dir, file)));
     if (dir_it != _directories.end())
     {
@@ -216,9 +354,8 @@ public:
     return get_file (dir, file)->_stat;
   }
 
-  void open (const std::string& dir, const std::string& file, fuse_file_info* file_info)
+  virtual void open (const std::string& dir, const std::string& file, fuse_file_info* file_info)
   {
-    std::cout << "open (" << dir << ", " << file << ", file_info);\n";
 
     file_list_type::iterator file_it (get_file (dir, file));
 
@@ -231,7 +368,7 @@ public:
     }
   }
 
-  size_t read ( const std::string& dir
+  virtual size_t read ( const std::string& dir
               , const std::string& file
               , fuse_file_info* file_info
               , char* result_buffer
@@ -239,8 +376,6 @@ public:
               , size_t size
               )
   {
-    std::cout << "read (" << dir << ", " << file << ", file_info, result_buffer, " << offset << ", " << size << ");\n";
-
     file_list_type::iterator file_it (get_file (dir, file));
 
     if (offset < file_it->_stat.st_size)
@@ -263,7 +398,7 @@ public:
   }
 
 /*
-  size_t write ( const std::string& dir
+  virtual size_t write ( const std::string& dir
                , const std::string& file
                , fuse_file_info* file_info
                , const char* data
@@ -303,9 +438,10 @@ public:
   }
 */
 
-  void list_files (const std::string& directory, file_lister_helper& list)
+  virtual void list_files (const std::string& directory, file_lister_helper& list)
   {
-    std::cout << "list_files (" << directory << ", list);\n";
+
+    std::cout << "dirlist: " << directory << std::endl;
 
     directories_type::iterator dir (_directories.find (directory));
     if (dir == _directories.end())
@@ -342,19 +478,17 @@ public:
     }
   }
 
-  void make_directory (std::string directory)
+  virtual void make_directory (std::string directory)
   {
     directory += "/";
-    std::cout << "make_directory (" << directory << ");\n";
     _directories[directory]._min_time = 0;
     time (&_directories[directory]._min_time);
     _directories[directory]._max_time = _directories[directory]._min_time;
   }
 
-  void remove_directory (std::string directory)
+  virtual void remove_directory (std::string directory)
   {
     directory += "/";
-    std::cout << "remove_directory (" << directory << ");\n";
 
     directories_type::iterator dir_it (_directories.find (directory));
     if (dir_it == _directories.end())
@@ -383,42 +517,28 @@ public:
     _directories.erase (dir_it);
   }
 
-  void remove_file (const std::string& directory, const std::string& file)
+  virtual void remove_file (const path_type& path)
   {
     //! \todo Do all files get closed before this is called?
 
-    std::string path ((directory + file).substr (1));
-    replace (path, "/", "\\");
-
-    if (!SFileRemoveFile (_internal, path.c_str(), SFILE_OPEN_FROM_MPQ))
+    if (!SFileRemoveFile (_internal, path.full_path (false, "\\", false).c_str()))
     {
-      //! \todo correct error
-      throw no_such_file();
+      throw_error_if_available();
     }
 
-    _directories[directory]._files.erase (get_file (directory, file));
+    _directories[path.directory()]._files.erase (get_file (path));
   }
 
-  void create_file (const std::string& dir, const std::string& file, fuse_file_info* file_info, mode_t mode)
+  virtual void create_file (const path_type& path, fuse_file_info* file_info, mode_t mode)
   {
-    //! \todo DOes directory exist? Oo
-    std::cout << "create_file (" << dir << ", " << file << ", file_info, mode);\n";
+    //! \todo Does directory exist? Oo
 
     time_t current_time;
     time (&current_time);
 
-    //! \todo reverse!
-    //time_t unix_time ( filetime_to_time_t ( file_data.dwFileTimeLo
-    //                                     , file_data.dwFileTimeHi
-     //                                     )
-     //                );
-
-    std::string path ((dir + file).substr (1));
-    replace (path, "/", "\\");
-
     if ( !SFileCreateFile ( _internal
-                          , path.c_str()
-                          , 0 //! \todo time
+                          , path.full_path (false, "\\", false).c_str()
+                          , time_t_to_filetime (current_time)
                           , 0 //size
                           , 0 //locale
                           , 0 //flags
@@ -426,8 +546,7 @@ public:
                           )
        )
     {
-      //! \todo anderer fehler.
-      throw no_such_file();
+      throw_error_if_available();
     }
 
     stat_type stat;
@@ -441,6 +560,10 @@ public:
     stat.st_ctime = current_time;
     stat.st_birthtime = current_time;
 
+    const std::string dir (path.directory());
+
+    std::cout << "dir: " << dir << ", file: " << path.file() << std::endl;
+
     _directories[dir]._max_time = std::max ( current_time
                                            , _directories[dir]._max_time
                                            );
@@ -448,30 +571,24 @@ public:
                                            , _directories[dir]._max_time
                                            );
 
-    _directories[dir]._files.push_back (file_entry_type (stat, file));
-
-//bool   WINAPI SFileWriteFile(HANDLE hFile, const void * pvData, DWORD dwSize, DWORD dwCompression);
+    _directories[dir]._files.push_back (file_entry_type (stat, path.file()));
   }
 
-  void release_file_handle (const std::string& dir, const std::string& file, fuse_file_info* file_info)
+  virtual void release_file_handle (const std::string& dir, const std::string& file, fuse_file_info* file_info)
   {
-    std::cout << "release_file_handle (" << dir << ", " << file << ", file_info);\n";
-
     if (!SFileFinishFile (reinterpret_cast<HANDLE*> (&file_info->fh)))
     {
-      //! \todo anderer fehler.
-      throw no_such_file();
+      throw_error_if_available();
     }
     if (!SFileCloseFile (reinterpret_cast<HANDLE*> (&file_info->fh)))
     {
-      //! \todo anderer fehler.
-      throw no_such_file();
+      throw_error_if_available();
     }
 
     //! \todo Flush MPQ?
   }
 
-  void rename_file ( const std::string& source_directory
+  virtual void rename_file ( const std::string& source_directory
                    , const std::string& source_file
                    , const std::string& target_directory
                    , const std::string& target_file
@@ -491,8 +608,7 @@ public:
 
     if (!SFileRenameFile (_internal, source.c_str(), target.c_str()))
     {
-      //! \todo Other errors.
-      throw no_such_file();
+      throw_error_if_available();
     }
 
     file_list_type::iterator old_file (get_file (source_directory, source_file));
@@ -540,6 +656,11 @@ public:
   }
 
 private:
+  file_list_type::iterator get_file (const path_type& path)
+  {
+    return get_file (path.directory(), path.file());
+  }
+
   file_list_type::iterator get_file ( const std::string& dir
                                     , const std::string& file
                                     )
@@ -569,19 +690,7 @@ private:
   directories_type _directories;
 };
 
-mpq_fs* get_file_system_from_fuse_context();
-
-inline void split_into_dir_and_file ( const std::string& in
-                                    , std::string& path
-                                    , std::string& file
-                                    )
-{
-  const size_t slash_pos (in.find_last_of ('/'));
-  path = in.substr (0, slash_pos + 1);
-  file = in.substr (slash_pos + 1);
-}
-
-inline mpq_fs* get_file_system_from_fuse_context()
+inline fuse_file_system* get_file_system_from_fuse_context()
 {
   return static_cast <mpq_fs*> (fuse_get_context()->private_data);
 }
@@ -597,10 +706,7 @@ int fs_getattr (const char* path, stat_type* stat_buf)
     *stat_buf = get_file_system_from_fuse_context()->get_attributes (directory, file);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_readdir ( const char* path
@@ -627,10 +733,7 @@ int fs_readdir ( const char* path
     get_file_system_from_fuse_context()->list_files (directory, helper);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_open (const char* path, fuse_file_info* file_info)
@@ -644,10 +747,7 @@ int fs_open (const char* path, fuse_file_info* file_info)
     get_file_system_from_fuse_context()->open (directory, file, file_info);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_read ( const char* path
@@ -665,10 +765,7 @@ int fs_read ( const char* path
   {
     return get_file_system_from_fuse_context()->read (directory, file, file_info, result_buffer, offset, size);
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_mkdir (const char* path, mode_t)
@@ -678,10 +775,7 @@ int fs_mkdir (const char* path, mode_t)
     get_file_system_from_fuse_context()->make_directory (path);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_rmdir (const char* path)
@@ -691,27 +785,17 @@ int fs_rmdir (const char* path)
     get_file_system_from_fuse_context()->remove_directory (path);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_create (const char* path, mode_t mode, struct fuse_file_info* file_info)
 {
-  std::string directory;
-  std::string file;
-  split_into_dir_and_file (path, directory, file);
-
   try
   {
-    get_file_system_from_fuse_context()->create_file (directory, file, file_info, mode);
+    get_file_system_from_fuse_context()->create_file (path, file_info, mode);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_release (const char* path, fuse_file_info* file_info)
@@ -725,27 +809,17 @@ int fs_release (const char* path, fuse_file_info* file_info)
     get_file_system_from_fuse_context()->release_file_handle (directory, file, file_info);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 int fs_unlink (const char* path)
 {
-  std::string directory;
-  std::string file;
-  split_into_dir_and_file (path, directory, file);
-
   try
   {
-    get_file_system_from_fuse_context()->remove_file (directory, file);
+    get_file_system_from_fuse_context()->remove_file (path);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 /*
@@ -759,10 +833,7 @@ int fs_write (const char* path, const char* data, size_t size, off_t offset, fus
   {
     return get_file_system_from_fuse_context()->write (directory, file, file_info, data, offset, size);
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 */
 
@@ -780,10 +851,7 @@ int fs_rename (const char* source, const char* target)
     get_file_system_from_fuse_context()->rename_file (source_directory, source_file, target_directory, target_file);
     return 0;
   }
-  catch (const system_error& error)
-  {
-    return -error._error_id;
-  }
+  CATCH_AND_RETURN_ERROR;
 }
 
 void* fs_init (fuse_conn_info*)
@@ -855,10 +923,10 @@ int main (int argc, char** argv)
 {
   try
   {
-    return fuse_main(argc - 1, argv, &hello_oper, argv[argc - 1]);
+    return fuse_main (argc - 1, argv, &hello_oper, argv[argc - 1]);
   }
-  catch (std::exception& e)
+  catch (const std::exception& exception)
   {
-    std::cerr << "EXCEPTION: " << e.what() << std::endl;
+    std::cerr << exception.what() << "\n";
   }
 }
