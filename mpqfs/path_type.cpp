@@ -1,3 +1,6 @@
+// path_type.cpp is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #include "path_type.h"
 
 #include <sstream>

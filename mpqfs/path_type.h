@@ -1,3 +1,6 @@
+// path_type.h is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #ifndef __PATH_TYPE_H
 #define __PATH_TYPE_H
 

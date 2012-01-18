@@ -1,3 +1,6 @@
+# CMakeLists.txt is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+# Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 set ( mpqfs_src
       main.cpp
       mpq_fs.cpp

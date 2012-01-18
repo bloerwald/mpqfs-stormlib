@@ -1,3 +1,6 @@
+// storm_error_code_thrower.cpp is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #include "storm_error_code_thrower.h"
 
 #include <StormPort.h>

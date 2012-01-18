@@ -1,3 +1,6 @@
+// fuse_file_system.h is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #ifndef __FUSE_FILE_SYSTEM_H
 #define __FUSE_FILE_SYSTEM_H
 

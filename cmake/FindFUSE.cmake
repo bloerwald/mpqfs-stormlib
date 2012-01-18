@@ -1,3 +1,6 @@
+# FindFUSE.cmake is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+# Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 FIND_PACKAGE(PkgConfig)
 PKG_CHECK_MODULES(PC_FUSE fuse)
 

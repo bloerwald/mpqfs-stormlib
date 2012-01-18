@@ -1,3 +1,6 @@
+// platform_dependence_helpers.h is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #ifndef __PLATFORM_DEPENDENCE_HELPERS_H
 #define __PLATFORM_DEPENDENCE_HELPERS_H
 

@@ -1,3 +1,6 @@
+# Findstorm.cmake is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+# Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #find STORM
 # STORM_LIBRARIES, the name of the library to link against
 # STORM_FOUND, if false, do not try to link

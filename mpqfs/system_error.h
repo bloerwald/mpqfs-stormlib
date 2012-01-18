@@ -1,3 +1,6 @@
+// system_error.h is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #ifndef __SYSTEM_ERROR_H
 #define __SYSTEM_ERROR_H
 

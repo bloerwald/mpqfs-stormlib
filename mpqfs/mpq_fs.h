@@ -1,3 +1,6 @@
+// mpq_fs.h is part of mpqfs-stormlib, licensed via GNU General Public License (version 3).
+// Bernd Lörwald <bloerwald+mpqfs@googlemail.com>
+
 #include "fuse_file_system.h"
 #include "path_type.h"
 
