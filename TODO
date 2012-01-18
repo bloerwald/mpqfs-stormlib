@@ -1,0 +1,13 @@
+add writing support:
+MPQ_FILE_REPLACEEXISTING sounds awesome.
+open, getfilesize, allocate vector for handle, copy everything there, when off+bytes > size resize vector, write into buffer, repeat until flush or close, create with replace and sizeof buffer, write, close, repeat until closing mpq, flush, compress.
+
+Ladik:
+"> when off+bytes > size resize vector
+Don‘t bother. StormLib will do that for you as long as you don’t
+write more data than originally passed to SFileCreateFile.
+
+Also, remember that if you rewrite a file inside a MPQ, there will be a hole
+in the MPQ that is the remains of the original file before rewriting.
+SFileCompactArchive fixes this problem, but that’s kinda hell slow function
+that rebuilds the MPQ from scratch."
