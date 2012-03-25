@@ -15,6 +15,5 @@ include_directories (${storm_INCLUDE_DIR})
 
 add_definitions (-D_FILE_OFFSET_BITS=64 -D__FreeBSD__=10 -DFUSE_USE_VERSION=26)
 
-add_subdirectory (fusecpp)
 add_subdirectory (mpqfs)
 add_subdirectory (tests)
